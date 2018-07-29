@@ -5,6 +5,7 @@
 
     Sample usage:
      python3 eCrimeLabsFeeds.py -h
+     python3 eCrimeLabsFeeds.py --listtypes
      python3 eCrimeLabsFeeds.py --output /home/<user>/iocs/ --feed any --age 1d --bulk
      python3 eCrimeLabsFeeds.py --output temp1 --feed block --age 1d --type ipv4
 
@@ -211,19 +212,19 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if (args.listfeeds):
-        print (" [*] Fetching " + args.listfeeds + " from API...")
+        print (" [*] Listing avaliable feeds from API...")
         outputs = list_api_content("listfeeds")
         for output in outputs:
-            print ("\t " + output)
+            print ("\t - " + str(output))
         sys.exit()
     elif (args.listtypes):
-        print (" [*] Fetching " + args.listtypes + " from API...")
+        print (" [*] Listing avaliable types from API...")
         outputs = list_api_content("listtypes")
         for output in outputs:
             print ("\t " + output)
         sys.exit()
     elif (args.listages):
-        print (" [*] Fetching " + args.listages + " from API...")
+        print (" [*] Listing avaliable ages from API...")
         outputs = list_api_content("listages")
         for output in outputs:
             print ("\t " + output)
