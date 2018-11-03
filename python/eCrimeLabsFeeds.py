@@ -42,11 +42,12 @@ import string
 import json
 import os
 import datetime
-from pprint import pprint
+#from pprint import pprint
 from keys import broker_url, broker_key
 
 def splash():
-    print ('eCrimeLabs Broker Feed IOC extractor')
+    print ("\r\n")
+    print ('eCrimeLabs Broker Feed/Module IOC extractor')
     print ('(c)2018 eCrimeLabs')
     print ('https://www.ecrimelabs.com')
     print ("----------------------------------------\r\n")
@@ -83,7 +84,7 @@ def check_file_writable(fnm):
     # target is creatable if parent dir is writable
     return os.access(pdir, os.W_OK)
 
-def get_data_from_api(url):
+def get_data_from_api(url, type):
     try:
         r = requests.get(url,timeout=360) #
         r.raise_for_status()
@@ -101,14 +102,46 @@ def get_data_from_api(url):
         sys.exit()
 
     if (r.status_code == requests.codes.ok):
-        outputs = "# Checksum of below data: " + r.headers.get('X-body-checksum') + "\r\n"
-        outputs += r.text
+        if(type == "feed"):
+            outputs = "# Checksum of below data: " + r.headers.get('X-body-checksum') + "\r\n"
+            outputs += r.text
+        else:
+            outputs = r.text
+
         return (outputs)
     else:
         print ("Error occoured when listing API content")
         sys.exit()
 
-def validate_data_for_api(output, feeds, types, age, bulk):
+def fetch_data_from_module(output, module):
+    global broker_url
+    global broker_key
+
+    if not (check_file_writable(output)):
+        print ("An error occoured in relation to creating file " + output)
+        sys.exit(1)
+
+    moduleslist  = list_api_content("listmodules")
+    valid = False
+    for modulelist in moduleslist:
+        if (modulelist == module):
+            valid = True
+    if not (valid):
+        print ("The module " + module + " does not exists")
+        sys.exit()
+
+    url = broker_url + "/feed/" + module + "/" + broker_key
+
+    filedata = (get_data_from_api(url, "module"))
+
+    filebuffer = open(output, 'w')
+    filebuffer.write(filedata + "\r\n")
+    filebuffer.close
+    return (output)
+
+
+
+def fetch_data_from_api(output, feeds, types, age, bulk):
     global broker_url
     global broker_key
 
@@ -151,7 +184,8 @@ def validate_data_for_api(output, feeds, types, age, bulk):
 
     now = datetime.datetime.now(datetime.timezone.utc)
     url = broker_url + "/apiv1/" + feeds + "/" + types + "/" + age + "/" + broker_key + "/txt"
-    filedata = (get_data_from_api(url))
+
+    filedata = (get_data_from_api(url, "feed"))
 
     if(bulk):
         if output.endswith('/'):
@@ -166,6 +200,8 @@ def validate_data_for_api(output, feeds, types, age, bulk):
     filebuffer.write(filedata + "\r\n")
     filebuffer.close
     return (output)
+
+
 
 def list_api_content(content):
     global broker_url
@@ -201,11 +237,13 @@ if __name__ == '__main__':
     parser.add_argument("--listtypes", help="Displays a list of valid types to use", action='store_true')
     parser.add_argument("--listfeeds", help="Displays a list of valid feeds to use", action='store_true')
     parser.add_argument("--listages",  help="Displays a list of valid ages to use", action='store_true')
+    parser.add_argument("--listmodules",  help="Displays a list of avaliable modules", action='store_true')
     parser.add_argument("-o", "--output", help="Output file and if used in conjunction with --bulk it has to be folder")
     parser.add_argument("-t", "--type", help="Defined the type of data")
     parser.add_argument("-f", "--feed", help="Defined the feed from where to get data from")
     parser.add_argument("-a", "--age", help="Defined the age to go back in time to fetch data from (default 1 hour)", default="1h")
     parser.add_argument("-b", "--bulk", help="Fetches all the types of a specific feed into a folder", action='store_true')
+    parser.add_argument("-m", "--module", help="Fetches data content of a module")
     if len(sys.argv)==1:
     	parser.print_help(sys.stderr)
     	sys.exit(1)
@@ -229,15 +267,27 @@ if __name__ == '__main__':
         for output in outputs:
             print ("\t " + output)
         sys.exit()
+    elif (args.listmodules):
+        print (" [*] Listing avaliable modules from API...")
+        outputs = list_api_content("listmodules")
+        for output in outputs:
+            print ("\t " + output)
+        sys.exit()
+
     else:
-        if (args.output and args.type and args.feed and args.age and not args.bulk):
+        if (args.module and args.output):
+            print (" [*] Fetching module data from API initiated")
+            print ("   [-] Save to file: " + args.output)
+            print ("----------------------------------------\r\n")
+            fetch_data_from_module(args.output, args.module)
+        elif (args.output and args.type and args.feed and args.age and not args.bulk):
             print (" [*] Fetching IOCs from API initiated")
             print ("   [-] Feed: " + args.feed)
             print ("   [-] Type: " + args.type)
             print ("   [-] Age: " + args.age)
             print ("   [-] Save to file: " + args.output)
             print ("----------------------------------------\r\n")
-            validate_data_for_api(args.output, args.feed, args.type, args.age, args.bulk)
+            fetch_data_from_api(args.output, args.feed, args.type, args.age, args.bulk)
         elif (args.output and args.feed and args.age and args.bulk and not args.type):
             print (" [*] Fetching bulk IOCs from API initiated")
             print ("   [-] Feed: " + args.feed)
@@ -248,10 +298,9 @@ if __name__ == '__main__':
             data_types = list_api_content("listtypes")
             print ("    [-] Writting data files: ")
             for data_type in data_types:
-                filename = validate_data_for_api(args.output, args.feed, data_type, args.age, args.bulk)
+                filename = fetch_data_from_api(args.output, args.feed, data_type, args.age, args.bulk)
                 if os.path.exists(filename):
                     print("      + " + filename)
-
         else:
             parser.print_help(sys.stderr)
             sys.exit(1)
