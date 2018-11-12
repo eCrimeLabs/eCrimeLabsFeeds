@@ -276,7 +276,7 @@ if __name__ == '__main__':
 
     else:
         if (args.module and args.output):
-            print (" [*] Fetching module data from API initiated")
+            print (" [*] Fetching module data feeds from API initiated")
             print ("   [-] Save to file: " + args.output)
             print ("----------------------------------------\r\n")
             fetch_data_from_module(args.output, args.module)
