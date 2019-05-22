@@ -42,7 +42,8 @@ import string
 import json
 import os
 import datetime
-#from pprint import pprint
+import memcache
+from pprint import pprint
 from keys import broker_url, broker_key
 
 def splash():
@@ -139,9 +140,68 @@ def fetch_data_from_module(output, module):
     filebuffer.close
     return (output)
 
+def fetch_data_from_api_memcache(output, feeds, types, age, server, port, expiration):
+    global broker_url
+    global broker_key
+
+    try:
+       client = memcache.Client([server + ':' + port], debug=0)
+       client.set("connection-test", "eCrimeLabsFeed-test", 2)
+       output = client.get("connection-test")
+       if (output is None):
+          print ("Failed to write/read from Memcached server: " + server + ":" + port)
+          sys.exit()
+    except:
+        print ("Failed to connect to Memcached server: " + server + ":" + port)
+        sys.exit()
+
+    feedslist = list_api_content("listfeeds")
+    valid = False
+    for feedlist in feedslist:
+        if (feedlist == feeds):
+            valid = True
+    if not (valid):
+        print ("The feed value " + feeds + " is not a valid Feed")
+        sys.exit()
+
+    typeslist = list_api_content("listtypes")
+    valid = False
+    for typelist in typeslist:
+        if (typelist == types):
+            valid = True
+    if not (valid):
+        print ("The type value " + types + " is not a valid Type")
+        sys.exit()
+
+    ageslist  = list_api_content("listages")
+    valid = False
+    for agelist in ageslist:
+        if (agelist == age):
+            valid = True
+    if not (valid):
+        print ("The age value " + age + " is not a valid Age")
+        sys.exit()
+
+    url = broker_url + "/apiv1/" + feeds + "/" + types + "/" + age + "/" + broker_key + "/txt"
+
+    feed_data = (get_data_from_api(url, "feed"))
+    feed_data = re.sub(r"^#\sChecksum.*", "", feed_data, 0, re.IGNORECASE | re.MULTILINE)
+    feed_data = re.sub("^\n", "", feed_data, 0, re.IGNORECASE | re.MULTILINE)
+
+    entries = feed_data.split('\r\n')
+    cnt = 0
+    for entry in entries:
+        if not len(entry.strip()) == 0 :
+           client.set(types + "-" + entry, "eCrimeLabsFeed", int(expiration))
+           print ("Adding: " + entry)
+           cnt += 1
+
+    print ("-----------------------")
+    print ("Added: " + str(cnt) + " entries to memcached")
+    return (str(cnt))
 
 
-def fetch_data_from_api(output, feeds, types, age, bulk):
+def fetch_data_from_api_fs(output, feeds, types, age, bulk):
     global broker_url
     global broker_key
 
@@ -244,6 +304,9 @@ if __name__ == '__main__':
     parser.add_argument("-a", "--age", help="Defined the age to go back in time to fetch data from (default 1 hour)", default="1h")
     parser.add_argument("-b", "--bulk", help="Fetches all the types of a specific feed into a folder", action='store_true')
     parser.add_argument("-m", "--module", help="Fetches data content of a module")
+    parser.add_argument("-e", "--expiration", help="Memcached expiration of data in seconds (default 10 minutes)", default="600")
+    parser.add_argument("-s", "--server", help="Memcached server (default 127.0.0.1)", default="127.0.0.1")
+    parser.add_argument("-p", "--port", help="Memcached server port (default 11211)", default="11211")
     if len(sys.argv)==1:
     	parser.print_help(sys.stderr)
     	sys.exit(1)
@@ -279,7 +342,7 @@ if __name__ == '__main__':
             print (" [*] Fetching module data feeds from API initiated")
             print ("   [-] Save to file: " + args.output)
             print ("----------------------------------------\r\n")
-            fetch_data_from_module(args.output, args.module)
+            fetch_data_from_module_fs(args.output, args.module)
         elif (args.output and args.type and args.feed and args.age and not args.bulk):
             print (" [*] Fetching IOCs from API initiated")
             print ("   [-] Feed: " + args.feed)
@@ -287,7 +350,7 @@ if __name__ == '__main__':
             print ("   [-] Age: " + args.age)
             print ("   [-] Save to file: " + args.output)
             print ("----------------------------------------\r\n")
-            fetch_data_from_api(args.output, args.feed, args.type, args.age, args.bulk)
+            fetch_data_from_api_fs(args.output, args.feed, args.type, args.age, args.bulk)
         elif (args.output and args.feed and args.age and args.bulk and not args.type):
             print (" [*] Fetching bulk IOCs from API initiated")
             print ("   [-] Feed: " + args.feed)
@@ -298,9 +361,19 @@ if __name__ == '__main__':
             data_types = list_api_content("listtypes")
             print ("    [-] Writting data files: ")
             for data_type in data_types:
-                filename = fetch_data_from_api(args.output, args.feed, data_type, args.age, args.bulk)
+                filename = fetch_data_from_api_fs(args.output, args.feed, data_type, args.age, args.bulk)
                 if os.path.exists(filename):
                     print("      + " + filename)
+        elif (args.server and args.port and args.expiration and args.feed and args.age and args.type):
+            print (" [*] Fetching IOCs from API initiated")
+            print ("   [-] Feed: " + args.feed)
+            print ("   [-] Type: " + args.type)
+            print ("   [-] Age: " + args.age)
+            print ("   [-] Store into Memcached: " + args.server + " on port " + args.port)
+            print ("   [-] Memcached expiration: " + args.expiration + " seconds")
+            print ("----------------------------------------\r\n")
+            fetch_data_from_api_memcache(args.output, args.feed, args.type, args.age, args.server, args.port, args.expiration)
+
         else:
             parser.print_help(sys.stderr)
             sys.exit(1)
