@@ -8,12 +8,13 @@
      python3 eCrimeLabsFeeds.py --listtypes
      python3 eCrimeLabsFeeds.py --output /home/<user>/iocs/ --feed any --age 1d --bulk
      python3 eCrimeLabsFeeds.py --output temp1 --feed block --age 1d --type ipv4
+     python3 eCrimeLabsFeeds.py --server 127.0.0.1 --port 11211 --expiration 600 --feed alert --age 2d --type ipv4
 
 ---------------------------------------------------------------------------
 
 MIT License
 
-Copyright (c) 2018 Dennis Rand (https://www.ecrimelabs.com)
+Copyright (c) 2019 Dennis Rand (https://www.ecrimelabs.com)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -49,7 +50,7 @@ from keys import broker_url, broker_key
 def splash():
     print ("\r\n")
     print ('eCrimeLabs Broker Feed/Module IOC extractor')
-    print ('(c)2018 eCrimeLabs')
+    print ('(c)2019 eCrimeLabs')
     print ('https://www.ecrimelabs.com')
     print ("----------------------------------------\r\n")
 
